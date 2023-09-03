@@ -32,7 +32,7 @@ impl GameState {
     pub fn new(_ctx: &mut Context, bt: BT<BoidAction, String, f32>) -> GameState {
         GameState {
             state: PlayState::Setup,
-            dt: std::time::Duration::new(0, 0),
+            dt: Default::default(),
             boids: std::default::Default::default(),
             points: vec![
                 glam::vec2(0.0, -OBJECT_SIZE / 2.0),
@@ -44,50 +44,53 @@ impl GameState {
         }
     }
 }
-
 impl event::EventHandler for GameState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
+        let pressed_keys = input::keyboard::pressed_keys(ctx);
+        if pressed_keys.contains(&event::KeyCode::R) {
+            self.state = PlayState::Setup;
+            self.boids.drain(..);
+            return Ok(());
+        }
+        if pressed_keys.contains(&event::KeyCode::P) {
+            self.state = PlayState::Pause;
+            return Ok(());
+        }
+
         self.dt = timer::delta(ctx);
         let tick = (self.dt.subsec_millis() as f32) / 1000.0;
-        let pressed_keys = input::keyboard::pressed_keys(ctx);
-
         match self.state {
             PlayState::Setup => {
-                self.boids.drain(..);
                 if pressed_keys.contains(&event::KeyCode::Space) {
-                    self.boids = Boid::create_boids(&self.bt, OBJECT_COUNT, WINDOW_WIDTH, WINDOW_HEIGHT);
+                    self.boids = Boid::create_boids(
+                        &self.bt,
+                        OBJECT_COUNT,
+                        WINDOW_WIDTH,
+                        WINDOW_HEIGHT);
                     self.state = PlayState::Play;
                 }
             }
             PlayState::Pause => {
-                let pressed_keys = input::keyboard::pressed_keys(ctx);
                 if pressed_keys.contains(&event::KeyCode::Space) {
                     self.state = PlayState::Play;
-                } else if pressed_keys.contains(&event::KeyCode::R) {
-                    self.state = PlayState::Setup;
                 }
             }
             PlayState::Play => {
-                if pressed_keys.contains(&event::KeyCode::P) {
-                    self.state = PlayState::Pause;
-                } else if pressed_keys.contains(&event::KeyCode::R) {
-                    self.state = PlayState::Setup;
-                }
                 for i in 0..(self.boids).len() {
                     let boids_vec = self.boids.to_vec();
-                    let b = &mut self.boids[i];
+                    let boid = &mut self.boids[i];
                     game_tick(
                         self.dt.as_secs_f32(),
                         input::mouse::position(ctx),
-                        b,
+                        boid,
                         boids_vec,
                     );
 
                     //Convert new velocity to postion change
-                    b.x += b.dx * tick;
-                    b.y += b.dy * tick;
+                    boid.x += (boid.dx * tick);
+                    boid.y += (boid.dy * tick);
 
-                    self.boids[i] = b.clone();
+                    self.boids[i] = boid.clone();
                 }
             }
         };
@@ -118,7 +121,6 @@ impl event::EventHandler for GameState {
                     graphics::DrawParam::default().dest(text_pos),
                 )?;
             }
-
             _ => {
                 let mb = &mut graphics::MeshBuilder::new();
                 for boid in &self.boids {
