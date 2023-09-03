@@ -1,19 +1,22 @@
-mod boid;
+use std::collections::HashMap;
 
-use boid::{game_tick, Action};
-use bonsai_bt::BT;
-use ggez::{conf, event, graphics, input, timer, Context, ContextBuilder, GameResult};
+use ggez::{conf, Context, ContextBuilder, event, GameResult, graphics, input, timer};
+
+use boid::game_tick;
+
+mod boid;
 
 //window stuff
 const HEIGHT: f32 = 720.0;
 const WIDTH: f32 = HEIGHT * (16.0 / 9.0);
 
 //drawing stuff
-const NUM_BOIDS: usize = 100; // n
+const NUM_BOIDS: usize = 100;
+// n
 const BOID_SIZE: f32 = 32.0; // Pixels
 
 // generate boids
-fn get_boids(bt: &BT<Action, String, f32>) -> Vec<boid::Boid> {
+fn get_boids(bt: &bonsai_bt::BT<boid::Action, String, f32>) -> Vec<boid::Boid> {
     std::iter::repeat_with(|| boid::Boid::new(WIDTH, HEIGHT, bt.clone()))
         .take(NUM_BOIDS)
         .collect()
@@ -30,11 +33,11 @@ struct GameState {
     dt: std::time::Duration,
     boids: Vec<boid::Boid>,
     points: Vec<glam::Vec2>,
-    bt: BT<Action, String, f32>,
+    bt: bonsai_bt::BT<boid::Action, String, f32>,
 }
 
 impl GameState {
-    pub fn new(_ctx: &mut Context, bt: BT<Action, String, f32>) -> GameState {
+    pub fn new(_ctx: &mut Context, bt: bonsai_bt::BT<boid::Action, String, f32>) -> GameState {
         GameState {
             state: PlayState::Setup,
             dt: std::time::Duration::new(0, 0),
@@ -155,30 +158,21 @@ impl event::EventHandler for GameState {
                 graphics::draw(ctx, &m, graphics::DrawParam::new())?;
             }
         };
-
         graphics::present(ctx)
     }
 }
 
-fn main() {
-    use bonsai_bt::{Action, WhenAll, While};
-    use std::collections::HashMap;
-    let (mut ctx, events_loop) = ContextBuilder::new("Boids", "Daniel Eisen")
-        .window_mode(conf::WindowMode::default().dimensions(WIDTH, HEIGHT))
-        .window_setup(conf::WindowSetup::default().samples(conf::NumSamples::Eight))
-        .build()
-        .expect("Failed to create context");
-
-    let avoid_others = Action(boid::Action::AvoidOthers);
-    let fly_towards_center = Action(boid::Action::FlyTowardsCenter);
-    let limit_speed = Action(boid::Action::LimitSpeed);
-    let match_velocity = Action(boid::Action::MatchVelocity);
-    let keep_within_bounds = Action(boid::Action::KeepWithinBounds);
+fn create_bt() -> bonsai_bt::BT<boid::Action, String, f32> {
+    let avoid_others = bonsai_bt::Action(boid::Action::AvoidOthers);
+    let fly_towards_center = bonsai_bt::Action(boid::Action::FlyTowardsCenter);
+    let limit_speed = bonsai_bt::Action(boid::Action::LimitSpeed);
+    let match_velocity = bonsai_bt::Action(boid::Action::MatchVelocity);
+    let keep_within_bounds = bonsai_bt::Action(boid::Action::KeepWithinBounds);
 
     // Run both behaviors in parallell, WhenAll will always return (Running, 0.0) because
     // both behaviors would have to return (Success, dt) to the WhenAll condition to succeed.
-    let avoid_and_fly = WhenAll(vec![fly_towards_center, avoid_others]);
-    let behavior = While(
+    let avoid_and_fly = bonsai_bt::WhenAll(vec![fly_towards_center, avoid_others]);
+    let behavior = bonsai_bt::While(
         Box::new(avoid_and_fly),
         // vec![Succees, Success, Running] -> sequence is always returning running
         vec![match_velocity, limit_speed, keep_within_bounds],
@@ -190,8 +184,18 @@ fn main() {
     blackboard.insert("win_height".to_string(), HEIGHT);
 
     // create bt
-    let bt = BT::new(behavior, blackboard);
+    let bt = bonsai_bt::BT::new(behavior, blackboard);
+    bt
+}
 
+fn main() {
+    let (mut ctx, events_loop) =
+        ContextBuilder::new("Boids", "Daniel Eisen")
+            .window_mode(conf::WindowMode::default().dimensions(WIDTH, HEIGHT))
+            .window_setup(conf::WindowSetup::default().samples(conf::NumSamples::Eight))
+            .build()
+            .expect("Failed to create context");
+    let bt = create_bt();
     let state = GameState::new(&mut ctx, bt);
     event::run(ctx, events_loop, state);
 }
