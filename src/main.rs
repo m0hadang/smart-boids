@@ -1,26 +1,18 @@
+mod boid;
+
 use std::collections::HashMap;
 
+use bonsai_bt::{Action, BT};
 use ggez::{conf, Context, ContextBuilder, event, GameResult, graphics, input, timer};
 
 use boid::game_tick;
 
-mod boid;
+use crate::boid::{Boid, BOID_SIZE, BoidAction, NUM_BOIDS};
 
 //window stuff
 const HEIGHT: f32 = 720.0;
 const WIDTH: f32 = HEIGHT * (16.0 / 9.0);
 
-//drawing stuff
-const NUM_BOIDS: usize = 100;
-// n
-const BOID_SIZE: f32 = 32.0; // Pixels
-
-// generate boids
-fn get_boids(bt: &bonsai_bt::BT<boid::Action, String, f32>) -> Vec<boid::Boid> {
-    std::iter::repeat_with(|| boid::Boid::new(WIDTH, HEIGHT, bt.clone()))
-        .take(NUM_BOIDS)
-        .collect()
-}
 
 enum PlayState {
     Setup,
@@ -31,13 +23,13 @@ enum PlayState {
 struct GameState {
     state: PlayState,
     dt: std::time::Duration,
-    boids: Vec<boid::Boid>,
+    boids: Vec<Boid>,
     points: Vec<glam::Vec2>,
-    bt: bonsai_bt::BT<boid::Action, String, f32>,
+    bt: BT<BoidAction, String, f32>,
 }
 
 impl GameState {
-    pub fn new(_ctx: &mut Context, bt: bonsai_bt::BT<boid::Action, String, f32>) -> GameState {
+    pub fn new(_ctx: &mut Context, bt: BT<BoidAction, String, f32>) -> GameState {
         GameState {
             state: PlayState::Setup,
             dt: std::time::Duration::new(0, 0),
@@ -63,32 +55,34 @@ impl event::EventHandler for GameState {
             PlayState::Setup => {
                 self.boids.drain(..);
                 if pressed_keys.contains(&event::KeyCode::Space) {
-                    self.boids = get_boids(&self.bt);
+                    self.boids = Boid::create_boids(&self.bt, WIDTH, HEIGHT);
                     self.state = PlayState::Play;
                 }
             }
 
             PlayState::Pause => {
                 let pressed_keys = input::keyboard::pressed_keys(ctx);
-
                 if pressed_keys.contains(&event::KeyCode::Space) {
                     self.state = PlayState::Play;
                 } else if pressed_keys.contains(&event::KeyCode::R) {
                     self.state = PlayState::Setup;
                 }
             }
-
             PlayState::Play => {
                 if pressed_keys.contains(&event::KeyCode::P) {
                     self.state = PlayState::Pause;
                 } else if pressed_keys.contains(&event::KeyCode::R) {
                     self.state = PlayState::Setup;
                 }
-
                 for i in 0..(self.boids).len() {
                     let boids_vec = self.boids.to_vec();
-                    let mut b = &mut self.boids[i];
-                    game_tick(self.dt.as_secs_f32(), input::mouse::position(ctx), b, boids_vec);
+                    let b = &mut self.boids[i];
+                    game_tick(
+                        self.dt.as_secs_f32(),
+                        input::mouse::position(ctx),
+                        b,
+                        boids_vec,
+                    );
 
                     //Convert new velocity to postion change
                     b.x += b.dx * tick;
@@ -104,7 +98,6 @@ impl event::EventHandler for GameState {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         graphics::clear(ctx, [0.15, 0.2, 0.22, 1.0].into());
-
         // MENU: display controls
         match self.state {
             PlayState::Setup => {
@@ -120,7 +113,11 @@ impl event::EventHandler for GameState {
                     (HEIGHT - menu_text.height(ctx) as f32) / 2.0,
                 );
 
-                graphics::draw(ctx, &menu_text, graphics::DrawParam::default().dest(text_pos))?;
+                graphics::draw(
+                    ctx,
+                    &menu_text,
+                    graphics::DrawParam::default().dest(text_pos),
+                )?;
             }
 
             _ => {
@@ -153,7 +150,11 @@ impl event::EventHandler for GameState {
                     glam::vec2(42.0, 10.0),
                     glam::vec2(150.0, 100.0),
                 ];
-                mb.polyline(graphics::DrawMode::stroke(2.0), line, [1.0, 1.0, 1.0, 1.0].into())?;
+                mb.polyline(
+                    graphics::DrawMode::stroke(2.0),
+                    line,
+                    [1.0, 1.0, 1.0, 1.0].into(),
+                )?;
                 let m = mb.build(ctx)?;
                 graphics::draw(ctx, &m, graphics::DrawParam::new())?;
             }
@@ -162,12 +163,12 @@ impl event::EventHandler for GameState {
     }
 }
 
-fn create_bt() -> bonsai_bt::BT<boid::Action, String, f32> {
-    let avoid_others = bonsai_bt::Action(boid::Action::AvoidOthers);
-    let fly_towards_center = bonsai_bt::Action(boid::Action::FlyTowardsCenter);
-    let limit_speed = bonsai_bt::Action(boid::Action::LimitSpeed);
-    let match_velocity = bonsai_bt::Action(boid::Action::MatchVelocity);
-    let keep_within_bounds = bonsai_bt::Action(boid::Action::KeepWithinBounds);
+fn create_bt() -> BT<BoidAction, String, f32> {
+    let avoid_others = Action(BoidAction::AvoidOthers);
+    let fly_towards_center = Action(BoidAction::FlyTowardsCenter);
+    let limit_speed = Action(BoidAction::LimitSpeed);
+    let match_velocity = Action(BoidAction::MatchVelocity);
+    let keep_within_bounds = Action(BoidAction::KeepWithinBounds);
 
     // Run both behaviors in parallell, WhenAll will always return (Running, 0.0) because
     // both behaviors would have to return (Success, dt) to the WhenAll condition to succeed.
@@ -184,18 +185,16 @@ fn create_bt() -> bonsai_bt::BT<boid::Action, String, f32> {
     blackboard.insert("win_height".to_string(), HEIGHT);
 
     // create bt
-    let bt = bonsai_bt::BT::new(behavior, blackboard);
-    bt
+    BT::new(behavior, blackboard)
 }
 
 fn main() {
-    let (mut ctx, events_loop) =
-        ContextBuilder::new("Boids", "Daniel Eisen")
-            .window_mode(conf::WindowMode::default().dimensions(WIDTH, HEIGHT))
-            .window_setup(conf::WindowSetup::default().samples(conf::NumSamples::Eight))
-            .build()
-            .expect("Failed to create context");
+    let (mut ctx, events_loop) = ContextBuilder::new("Boids", "Daniel Eisen")
+        .window_mode(conf::WindowMode::default().dimensions(WIDTH, HEIGHT))
+        .window_setup(conf::WindowSetup::default().samples(conf::NumSamples::Eight))
+        .build()
+        .expect("Failed to create context");
     let bt = create_bt();
-    let state = GameState::new(&mut ctx, bt);
-    event::run(ctx, events_loop, state);
+    let game_state = GameState::new(&mut ctx, bt);
+    event::run(ctx, events_loop, game_state);
 }

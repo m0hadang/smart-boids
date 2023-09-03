@@ -1,13 +1,20 @@
-use bonsai_bt::{Event, Status::Success, UpdateArgs, BT, RUNNING};
+use bonsai_bt::{BT, Event, RUNNING, Status::Success, UpdateArgs};
 use ggez::mint;
 
 //algorithm stuff
-const SPEED_LIMIT: f32 = 400.0; // Pixels per second
-const VISUAL_RANGE: f32 = 32.0; // Pixels
+const SPEED_LIMIT: f32 = 400.0;
+// Pixels per second
+const VISUAL_RANGE: f32 = 32.0;
+// Pixels
 const MIN_DISTANCE: f32 = 16.0; // Pixels
 
+//drawing stuff
+pub const NUM_BOIDS: usize = 100;
+// n
+pub const BOID_SIZE: f32 = 32.0; // Pixels
+
 #[derive(Clone, Debug)]
-pub enum Action {
+pub enum BoidAction {
     /// avoid others
     AvoidOthers,
     /// Fly towards center
@@ -27,11 +34,11 @@ pub struct Boid {
     pub dx: f32,
     pub dy: f32,
     pub color: [f32; 4],
-    pub bt: BT<Action, String, f32>,
+    pub bt: BT<BoidAction, String, f32>,
 }
 
 impl Boid {
-    pub fn new(win_width: f32, win_height: f32, bt: BT<Action, String, f32>) -> Boid {
+    pub fn new(win_width: f32, win_height: f32, bt: BT<BoidAction, String, f32>) -> Boid {
         Boid {
             x: (rand::random::<f32>() * win_width / 2.0 + win_width / 4.0),
             y: (rand::random::<f32>() * win_height / 2.0 + win_height / 4.0),
@@ -51,6 +58,12 @@ impl Boid {
     fn distance(&self, boid: &Boid) -> f32 {
         ((self.x - boid.x).powi(2) + (self.y - boid.y).powi(2)).sqrt()
     }
+    // generate boids
+    pub fn create_boids(bt: &BT<BoidAction, String, f32>, boid_width: f32, boid_height: f32) -> Vec<Boid> {
+        std::iter::repeat_with(|| Boid::new(boid_width, boid_height, bt.clone()))
+            .take(NUM_BOIDS)
+            .collect()
+    }
 }
 
 pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boids: Vec<Boid>) {
@@ -64,9 +77,9 @@ pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boid
     let win_height: f32 = *db.get("win_height").unwrap();
 
     #[rustfmt::skip]
-    bt.state.tick(&e,&mut |args: bonsai_bt::ActionArgs<Event, Action>| {
+    bt.state.tick(&e, &mut |args: bonsai_bt::ActionArgs<Event, BoidAction>| {
         match args.action {
-            Action::AvoidOthers => {
+            BoidAction::AvoidOthers => {
                 let avoid_factor = 0.5;
                 let mut move_x = 0.0;
                 let mut move_y = 0.0;
@@ -81,8 +94,8 @@ pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boid
                 boid.dy += move_y * avoid_factor;
 
                 RUNNING
-            },
-            Action::FlyTowardsCenter => {
+            }
+            BoidAction::FlyTowardsCenter => {
                 let centering_factor = 0.05; // adjust velocity by this %
                 let mut center_x = 0.0;
                 let mut center_y = 0.0;
@@ -103,8 +116,8 @@ pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boid
                 }
 
                 RUNNING
-            },
-            Action::MatchVelocity => {
+            }
+            BoidAction::MatchVelocity => {
                 let matching_factor = 0.1;
                 let mut avg_dx = 0.0;
                 let mut avg_dy = 0.0;
@@ -124,8 +137,8 @@ pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boid
                     boid.dy += (avg_dy - boid.dy) * matching_factor;
                 }
                 (Success, args.dt)
-            },
-            Action::LimitSpeed => {
+            }
+            BoidAction::LimitSpeed => {
                 let speed = (boid.dx * boid.dx + boid.dy * boid.dy).sqrt();
                 if speed > SPEED_LIMIT {
                     boid.dx = (boid.dx / speed) * SPEED_LIMIT;
@@ -133,8 +146,8 @@ pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boid
                 }
 
                 (Success, args.dt)
-            },
-            Action::KeepWithinBounds => {
+            }
+            BoidAction::KeepWithinBounds => {
                 let edge_buffer: f32 = 40.0;
                 let turn_factor: f32 = 16.0;
                 let mut x_bounded = true;
@@ -168,8 +181,7 @@ pub fn game_tick(dt: f32, cursor: mint::Point2<f32>, boid: &mut Boid, other_boid
                 }
 
                 RUNNING
-            },
+            }
         }
-
     });
 }
