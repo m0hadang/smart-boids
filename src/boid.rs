@@ -34,10 +34,11 @@ pub struct Boid {
 }
 
 impl Boid {
-    pub fn new(win_width: f32, win_height: f32, bt: BT<BoidAction, String, f32>) -> Boid {
+    pub fn new(spawn_area_width: f32, spawn_area_height: f32,
+               bt: BT<BoidAction, String, f32>) -> Boid {
         Boid {
-            x: (rand::random::<f32>() * win_width / 2.0 + win_width / 4.0),
-            y: (rand::random::<f32>() * win_height / 2.0 + win_height / 4.0),
+            x: (rand::random::<f32>() * spawn_area_width / 2.0 + spawn_area_width / 4.0),
+            y: (rand::random::<f32>() * spawn_area_height / 2.0 + spawn_area_height / 4.0),
             dx: (rand::random::<f32>() - 0.5) * SPEED_LIMIT,
             dy: (rand::random::<f32>() - 0.5) * SPEED_LIMIT,
             color: [

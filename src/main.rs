@@ -15,34 +15,33 @@ const OBJECT_COUNT: usize = 100;
 pub const OBJECT_SIZE: f32 = 32.0; // Pixels
 
 #[derive(Clone, PartialEq)]
-enum PlayState {
+enum MenuState {
     Play,
     Setup,
     Pause,
 }
 
 #[derive(Clone, Debug)]
-enum GameOpState {
+enum OperationState {
     InputKey,
     UpdateGameData,
 }
 
-struct GameState {
-    state: PlayState,
-    dt: std::time::Duration,
+struct GameWorld {
+    menu_state: MenuState,
     boids: Vec<Boid>,
     points: Vec<glam::Vec2>,
-    bt: BT<BoidAction, String, f32>,
-    game_op_bt: State<GameOpState>,
+    boid_bt: BT<BoidAction, String, f32>,
+    game_op_bt: State<OperationState>,
+    dt: std::time::Duration,
 }
 
-impl GameState {
-    pub fn new(
-        _ctx: &mut Context,
-        bt: BT<BoidAction, String, f32>,
-    ) -> GameState {
-        GameState {
-            state: PlayState::Setup,
+impl GameWorld {
+    pub fn new(_ctx: &mut Context,
+               bt: BT<BoidAction, String, f32>,
+    ) -> GameWorld {
+        GameWorld {
+            menu_state: MenuState::Setup,
             dt: Default::default(),
             boids: std::default::Default::default(),
             points: vec![
@@ -51,14 +50,14 @@ impl GameState {
                 glam::vec2(0.0, OBJECT_SIZE / 3.0),
                 glam::vec2(-OBJECT_SIZE / 4.0, OBJECT_SIZE / 2.0),
             ],
-            bt,
+            boid_bt: bt,
             game_op_bt: Self::create_bt(),
         }
     }
-    fn create_bt() -> State<GameOpState> {
+    fn create_bt() -> State<OperationState> {
         let state = Sequence(vec![
-            Action(GameOpState::InputKey),
-            Action(GameOpState::UpdateGameData)
+            Action(OperationState::InputKey),
+            Action(OperationState::UpdateGameData)
         ]);
         State::new(state)
     }
@@ -68,51 +67,51 @@ impl GameState {
                     cursor: Point2<f32>) {
         let e: Event = UpdateArgs { dt: dt.into() }.into();
         let mut game_op_bt = self.game_op_bt.clone();
-        game_op_bt.tick(&e, &mut |args: ActionArgs<Event, GameOpState>|
+        game_op_bt.tick(&e, &mut |args: ActionArgs<Event, OperationState>|
             match args.action {
-                GameOpState::InputKey => {
+                OperationState::InputKey => {
                     if pressed_keys.is_empty() {
                     } else {
                         // -> setup
                         if pressed_keys.contains(&event::KeyCode::R) {
-                            self.state = PlayState::Setup;
+                            self.menu_state = MenuState::Setup;
                             self.boids.drain(..);
                         } else {
-                            match self.state {
-                                PlayState::Setup => {
+                            match self.menu_state {
+                                MenuState::Setup => {
                                     // -> play
                                     if pressed_keys.contains(&event::KeyCode::Space) {
                                         self.boids = Boid::create_boids(
-                                            &self.bt,
+                                            &self.boid_bt,
                                             OBJECT_COUNT,
                                             WINDOW_WIDTH,
                                             WINDOW_HEIGHT);
-                                        self.state = PlayState::Play;
+                                        self.menu_state = MenuState::Play;
                                     }
                                 }
-                                PlayState::Pause => {
+                                MenuState::Pause => {
                                     // -> play
                                     if pressed_keys.contains(&event::KeyCode::Space) {
-                                        self.state = PlayState::Play;
+                                        self.menu_state = MenuState::Play;
                                     }
                                 }
-                                PlayState::Play => {
+                                MenuState::Play => {
                                     // -> pause
                                     if pressed_keys.contains(&event::KeyCode::P) {
-                                        self.state = PlayState::Pause;
+                                        self.menu_state = MenuState::Pause;
                                     }
                                 }
                             };
                         }
                     }
 
-                    if self.state == PlayState::Play {
+                    if self.menu_state == MenuState::Play {
                         (Success, args.dt)
                     } else {
                         (Failure, args.dt)
                     }
                 }
-                GameOpState::UpdateGameData => {
+                OperationState::UpdateGameData => {
                     let tick = (self.dt.subsec_millis() as f32) / 1000.0;
                     for i in 0..(self.boids).len() {
                         let boids_vec = self.boids.to_vec();
@@ -137,7 +136,7 @@ impl GameState {
     }
 }
 
-impl event::EventHandler for GameState {
+impl event::EventHandler for GameWorld {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         self.dt = timer::delta(ctx);
         let pressed_keys =
@@ -153,8 +152,8 @@ impl event::EventHandler for GameState {
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         graphics::clear(ctx, [0.15, 0.2, 0.22, 1.0].into());
         // MENU: display controls
-        match self.state {
-            PlayState::Setup => {
+        match self.menu_state {
+            MenuState::Setup => {
                 let menu_text = graphics::Text::new(graphics::TextFragment {
                     text: "play : <space>\npause : <p>\nreset : <r>".to_string(),
                     color: Some(graphics::Color::WHITE),
@@ -230,7 +229,7 @@ fn main() {
     let boid_bt: BT<BoidAction, String, f32> = BT::new(boid_bt, blackboard);
 
     let game_state =
-        GameState::new(&mut ctx, boid_bt);
+        GameWorld::new(&mut ctx, boid_bt);
     event::run(ctx, events_loop, game_state);
 }
 
