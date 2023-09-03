@@ -1,5 +1,3 @@
-mod boid;
-
 use std::collections::HashMap;
 
 use bonsai_bt::{Action, BT};
@@ -7,12 +5,14 @@ use ggez::{conf, Context, ContextBuilder, event, GameResult, graphics, input, ti
 
 use boid::game_tick;
 
-use crate::boid::{Boid, BOID_SIZE, BoidAction, NUM_BOIDS};
+use crate::boid::{Boid, BoidAction};
 
-//window stuff
-const HEIGHT: f32 = 720.0;
-const WIDTH: f32 = HEIGHT * (16.0 / 9.0);
+mod boid;
 
+const WINDOW_HEIGHT: f32 = 720.0;
+const WINDOW_WIDTH: f32 = WINDOW_HEIGHT * (16.0 / 9.0);
+const OBJECT_COUNT: usize = 100;
+pub const OBJECT_SIZE: f32 = 32.0; // Pixels
 
 enum PlayState {
     Setup,
@@ -33,12 +33,12 @@ impl GameState {
         GameState {
             state: PlayState::Setup,
             dt: std::time::Duration::new(0, 0),
-            boids: Vec::with_capacity(NUM_BOIDS),
+            boids: std::default::Default::default(),
             points: vec![
-                glam::vec2(0.0, -BOID_SIZE / 2.0),
-                glam::vec2(BOID_SIZE / 4.0, BOID_SIZE / 2.0),
-                glam::vec2(0.0, BOID_SIZE / 3.0),
-                glam::vec2(-BOID_SIZE / 4.0, BOID_SIZE / 2.0),
+                glam::vec2(0.0, -OBJECT_SIZE / 2.0),
+                glam::vec2(OBJECT_SIZE / 4.0, OBJECT_SIZE / 2.0),
+                glam::vec2(0.0, OBJECT_SIZE / 3.0),
+                glam::vec2(-OBJECT_SIZE / 4.0, OBJECT_SIZE / 2.0),
             ],
             bt,
         }
@@ -55,11 +55,10 @@ impl event::EventHandler for GameState {
             PlayState::Setup => {
                 self.boids.drain(..);
                 if pressed_keys.contains(&event::KeyCode::Space) {
-                    self.boids = Boid::create_boids(&self.bt, WIDTH, HEIGHT);
+                    self.boids = Boid::create_boids(&self.bt, OBJECT_COUNT, WINDOW_WIDTH, WINDOW_HEIGHT);
                     self.state = PlayState::Play;
                 }
             }
-
             PlayState::Pause => {
                 let pressed_keys = input::keyboard::pressed_keys(ctx);
                 if pressed_keys.contains(&event::KeyCode::Space) {
@@ -109,8 +108,8 @@ impl event::EventHandler for GameState {
                 });
 
                 let text_pos = glam::vec2(
-                    (WIDTH - menu_text.width(ctx) as f32) / 2.0,
-                    (HEIGHT - menu_text.height(ctx) as f32) / 2.0,
+                    (WINDOW_WIDTH - menu_text.width(ctx) as f32) / 2.0,
+                    (WINDOW_HEIGHT - menu_text.height(ctx) as f32) / 2.0,
                 );
 
                 graphics::draw(
@@ -181,8 +180,8 @@ fn create_bt() -> BT<BoidAction, String, f32> {
 
     // add some values to blackboard
     let mut blackboard: HashMap<String, f32> = HashMap::new();
-    blackboard.insert("win_width".to_string(), WIDTH);
-    blackboard.insert("win_height".to_string(), HEIGHT);
+    blackboard.insert("win_width".to_string(), WINDOW_WIDTH);
+    blackboard.insert("win_height".to_string(), WINDOW_HEIGHT);
 
     // create bt
     BT::new(behavior, blackboard)
@@ -190,7 +189,7 @@ fn create_bt() -> BT<BoidAction, String, f32> {
 
 fn main() {
     let (mut ctx, events_loop) = ContextBuilder::new("Boids", "Daniel Eisen")
-        .window_mode(conf::WindowMode::default().dimensions(WIDTH, HEIGHT))
+        .window_mode(conf::WindowMode::default().dimensions(WINDOW_WIDTH, WINDOW_HEIGHT))
         .window_setup(conf::WindowSetup::default().samples(conf::NumSamples::Eight))
         .build()
         .expect("Failed to create context");

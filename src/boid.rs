@@ -8,11 +8,6 @@ const VISUAL_RANGE: f32 = 32.0;
 // Pixels
 const MIN_DISTANCE: f32 = 16.0; // Pixels
 
-//drawing stuff
-pub const NUM_BOIDS: usize = 100;
-// n
-pub const BOID_SIZE: f32 = 32.0; // Pixels
-
 #[derive(Clone, Debug)]
 pub enum BoidAction {
     /// avoid others
@@ -59,9 +54,16 @@ impl Boid {
         ((self.x - boid.x).powi(2) + (self.y - boid.y).powi(2)).sqrt()
     }
     // generate boids
-    pub fn create_boids(bt: &BT<BoidAction, String, f32>, boid_width: f32, boid_height: f32) -> Vec<Boid> {
-        std::iter::repeat_with(|| Boid::new(boid_width, boid_height, bt.clone()))
-            .take(NUM_BOIDS)
+    pub fn create_boids(
+        bt: &BT<BoidAction, String, f32>,
+        count: usize,
+        world_width: f32,
+        world_height: f32,
+    ) -> Vec<Boid> {
+        std::iter::repeat_with(|| Boid::new(
+            world_width,
+            world_height, bt.clone()))
+            .take(count)
             .collect()
     }
 }
